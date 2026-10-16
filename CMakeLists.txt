@@ -24,7 +24,16 @@ if (EXISTS ${picoVscode})
 endif()
 # ====================================================================================
 set(PICO_BOARD weact_studio_rp2350b_core CACHE STRING "Board type")
-set(PICO_RP2350_A2_SUPPORTED 0)
+
+# Personalize
+if(PICO_BOARD STREQUAL "weact_studio_rp2350b_core")
+    set(PICO_RP2350_A2_SUPPORTED 0)
+endif()
+
+# Personalize
+if (PICO_COMPILER STREQUAL "pico_arm_cortex_m33_clang")
+    set(PICO_TOOLCHAIN_PATH "${USERHOME}/Coding/toolchains/LLVM-ET-Arm")
+endif()
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -58,7 +67,7 @@ pico_set_program_version(venti "0.1")
 pico_enable_stdio_uart(venti 0)
 pico_enable_stdio_usb(venti 0)
 pico_enable_stdio_rtt(venti 1)
-# Pico SDK ships RTT's C implementation, not its optional assembly writer.
+
 target_compile_definitions(venti PRIVATE RTT_USE_ASM=0)
 
 # Add the standard library to the build
@@ -75,5 +84,7 @@ target_include_directories(venti PRIVATE
         SystemView/Sample/FreeRTOSV11
         SystemView/SEGGER
 )
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_add_extra_outputs(venti)

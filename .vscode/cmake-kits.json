@@ -12,5 +12,16 @@
             "Python3_EXECUTABLE": "${command:raspberry-pi-pico.getPythonPath}"
         },
         "isTrusted": true
-    }   
+    },
+    {
+        "name": "Pico Clang",
+        "environmentVariables": {
+            "PATH": "${command:raspberry-pi-pico.getEnvPath};${env:PATH}"
+        },
+        "cmakeSettings": {
+            "Python3_EXECUTABLE": "${command:raspberry-pi-pico.getPythonPath}",
+            "PICO_COMPILER": "pico_arm_cortex_m33_clang"
+        },
+        "isTrusted": true
+    }
 ]
