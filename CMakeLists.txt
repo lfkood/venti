@@ -24,6 +24,7 @@ if (EXISTS ${picoVscode})
 endif()
 # ====================================================================================
 set(PICO_BOARD weact_studio_rp2350b_core CACHE STRING "Board type")
+set(PICO_RP2350_A2_SUPPORTED 0)
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -35,7 +36,7 @@ pico_sdk_init()
 
 # Add FreeRTOS
 set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_LIST_DIR}/FreeRTOS-Kernel")
-set(FREERTOS_CONFIG_FILE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
+set(FREERTOS_CONFIG_FILE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/src/include")
 
 add_subdirectory(
     "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/Community-Supported-Ports/GCC/RP2350_ARM_NTZ"
@@ -44,7 +45,10 @@ add_subdirectory(
 
 # Add executable. Default name is the project name, version 0.1
 add_executable(venti
-        venti.c
+        src/venti.c
+        SystemView/SYSVIEW/SEGGER_SYSVIEW.c
+        SystemView/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
+        SystemView/Sample/FreeRTOSV11/Config/Cortex-M/SEGGER_SYSVIEW_Config_FreeRTOS.c
 )
 
 pico_set_program_name(venti "venti")
@@ -65,7 +69,11 @@ target_link_libraries(venti
 
 # Add the standard include files to the build
 target_include_directories(venti PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}
+        src/include
+        FreeRTOS-Kernel/include
+        SystemView/SYSVIEW
+        SystemView/Sample/FreeRTOSV11
+        SystemView/SEGGER
 )
 
 pico_add_extra_outputs(venti)

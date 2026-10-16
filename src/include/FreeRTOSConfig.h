@@ -3,6 +3,7 @@
 
 // Start with scheduling on one core.
 #define configNUMBER_OF_CORES 1
+#include "SEGGER_SYSVIEW_FreeRTOS.h"
 
 #include "FreeRTOSConfig_examples_common.h"
 

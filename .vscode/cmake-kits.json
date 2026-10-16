@@ -10,6 +10,7 @@
         },
         "cmakeSettings": {
             "Python3_EXECUTABLE": "${command:raspberry-pi-pico.getPythonPath}"
-        }
-    }
+        },
+        "isTrusted": true
+    }   
 ]
