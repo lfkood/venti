@@ -33,6 +33,7 @@ endif()
 # Personalize
 if (PICO_COMPILER STREQUAL "pico_arm_cortex_m33_clang")
     set(PICO_TOOLCHAIN_PATH "${USERHOME}/Coding/toolchains/LLVM-ET-Arm")
+    add_link_options("-fuse-ld=lld")
 endif()
 
 # Pull in Raspberry Pi Pico SDK (must be before project)

@@ -2,6 +2,27 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Flash over GDB and remote OpenOCD + RTT 0",
+            "type": "process",
+            "command": "bash",
+            "args": [
+                "${workspaceFolder}/.vscode/flash-rtt.sh",
+                "${userHome}/.pico-sdk/toolchain/15_2_Rel1/bin/arm-none-eabi-gdb",
+                "${command:cmake.buildDirectory}/venti.elf"
+            ],
+            "dependsOn": "CMake: build venti",
+            "detail": "Build in WSL, flash through the existing Windows OpenOCD server on port 3333, then monitor RTT channel 0 on port 9090. Start Windows OpenOCD once; stopping the monitor leaves it running for the next flash. OPENOCD_HOST overrides host detection.",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "runOptions": {
+                "instanceLimit": 1
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Compile Project",
             "type": "process",
             "isBuildCommand": true,
