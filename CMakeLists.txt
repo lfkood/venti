@@ -56,9 +56,11 @@ add_subdirectory(
 # Add executable. Default name is the project name, version 0.1
 add_executable(venti
         src/venti.c
+        src/misc.c
+        src/tachometer.c
+        src/freertos_init.c
         SystemView/SYSVIEW/SEGGER_SYSVIEW.c
         SystemView/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
-        SystemView/Sample/FreeRTOSV11/Config/Cortex-M/SEGGER_SYSVIEW_Config_FreeRTOS.c
 )
 
 pico_set_program_name(venti "venti")

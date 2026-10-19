@@ -11,7 +11,7 @@
                 "${command:cmake.buildDirectory}/venti.elf"
             ],
             "dependsOn": "CMake: build venti",
-            "detail": "Build in WSL, flash through the existing Windows OpenOCD server on port 3333, then monitor RTT channel 0 on port 9090. Start Windows OpenOCD once; stopping the monitor leaves it running for the next flash. OPENOCD_HOST overrides host detection.",
+           "detail": "Build in WSL, flash through the existing Windows OpenOCD server on port 3333, then monitor RTT channel 0 on port 9090. Start Windows OpenOCD once; stopping the monitor leaves it running for the next flash. OPENOCD_HOST overrides host detection.",
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated",
@@ -33,7 +33,7 @@
                 "reveal": "always",
                 "panel": "dedicated"
             },
-            "problemMatcher": "$gcc",
+            "problemMatcher": [],
             "windows": {
                 "command": "${env:USERPROFILE}/.pico-sdk/ninja/v1.13.2/ninja.exe"
             }

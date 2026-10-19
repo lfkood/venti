@@ -4,9 +4,6 @@ set -euo pipefail
 # Windows must already be running OpenOCD for the RP2350, for example:
 # openocd.exe -c "bindto 0.0.0.0" -f interface/cmsis-dap.cfg \
 #   -f target/rp2350.cfg -c "adapter speed 25000"
-# Allow connections from WSL to TCP ports 3333 (GDB) and 9090 (RTT).
-# Each run flashes through the existing OpenOCD server, then monitors RTT.
-# Exiting stops only the local monitor; OpenOCD keeps running and owns the probe.
 # RTT commands: https://openocd.org/doc/html/General-Commands.html#Real-Time-Transfer-_0028RTT_0029
 gdb=${1:?Expected the WSL GDB executable}
 elf=${2:?Expected the firmware ELF path}
@@ -40,7 +37,7 @@ cleanup() {
     fi
     exec 3>&-
 
-    printf '\nLocal session ended; Windows OpenOCD is left running.\n'
+    printf '\nLocal session ended.\n'
     exit "$status"
 }
 trap cleanup EXIT
@@ -73,7 +70,7 @@ printf '\nFlashing %s through Windows OpenOCD at %s:3333.\n' "$elf" "$host"
     -ex 'detach' \
     --se="$elf"
 
-printf '\nMonitoring RTT channel 0 at %s:9090 (Ctrl+C stops only this monitor).\n' "$host"
+printf '\nMonitoring RTT channel 0 at %s:9090.\n' "$host"
 if ! exec 3<>"/dev/tcp/$host/9090"; then
     printf 'Cannot connect to RTT. Check the Windows OpenOCD bind address and firewall for port 9090.\n' >&2
     exit 1
