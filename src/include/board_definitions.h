@@ -1,8 +1,8 @@
-#ifndef VENTI_PIN_DEFINITIONS_H
-#define VENTI_PIN_DEFINITIONS_H
+#ifndef VENTI_BOARD_DEFINITIONS_H
+#define VENTI_BOARD_DEFINITIONS_H
+#include "pico/types.h"
 
-constexpr int FAN_COUNT = 2;
-constexpr int TACH1_PIN = 1;
-
+constexpr uint TACH1_PIN = 2;
+constexpr uint MAX_INTERRUPT_PIN = 3; // controls interrupt handler lookup size
 
 #endif

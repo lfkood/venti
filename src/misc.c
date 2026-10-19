@@ -1,6 +1,13 @@
 #include "misc.h"
 
-static void blink_task(void *parameter) {
+
+#include "hardware/gpio.h"
+#include "pico/stdlib.h"
+
+#include "FreeRTOS.h"
+#include "task.h"
+
+void blink_task(void *parameter) {
   (void)parameter;
 
   gpio_init(PICO_DEFAULT_LED_PIN);

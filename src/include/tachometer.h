@@ -1,16 +1,9 @@
 #ifndef TACHOMETER_H
 #define TACHOMETER_H
+#include <stdint.h>
+#include "pico/types.h"
 
-#include "hardware/gpio.h"
-#include "pico/time.h"
-#include "hardware/irq.h"
-
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-
-#include "board_definitions.h"
-
-static void tach_irq(void);
+void tach_monitor(void *parameter);
+static void gpio_irq_handler(uint gpio, uint32_t event_mask);
 
 #endif

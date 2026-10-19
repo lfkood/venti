@@ -1,8 +1,15 @@
 #include "venti.h"
 
+#include "pico/stdio.h"
+#include "hardware/gpio.h"
+
+
+#include "board_definitions.h"
+
+#include "freertos_init.h"
+
 int main() {
   stdio_init_all();
-  tachometer_init();
 
   stdio_puts("venti: RTT ready; starting FreeRTOS");
   

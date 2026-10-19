@@ -1,32 +1,71 @@
 #include "tachometer.h"
 
+#include "pico/time.h"
+#include "pico/stdio.h"
+#include "stdatomic.h"
+#include "hardware/gpio.h"
+#include "hardware/timer.h"
+#include "hardware/irq.h"
+
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+
+#include "board_definitions.h"
+#include <stdio.h>
+
+#define TACH_QUEUE_LENGTH 32
 static QueueHandle_t tach_queue;
 
-void tachometer_init(void) {
-  gpio_init(TACH1_PIN);
-  gpio_add_raw_irq_handler(TACH1_PIN, tach_irq);
-  gpio_set_irq_enabled(TACH1_PIN, GPIO_IRQ_EDGE_FALL, true);
-  tach_queue = xQueueCreate(10, sizeof(uint64_t));
-}
-
-#define TACH_BUF_LENGTH 32
+typedef enum {
+  VENTI_TACH_IRQ = 0,
+  VENTI_USER_INPUT_IRQ,
+} venti_irq_type_t;
 
 typedef struct {
-  uint64_t timestamps_us[TACH_BUF_LENGTH];
-} tach_event_t;
+  uint32_t event_mask;
+  venti_irq_type_t type;
+} venti_gpio_irq_t;
 
-static void tach_irq() {
-  uint64_t timestamp_us = time_us_64();
+static venti_gpio_irq_t VENTI_IRQ_TABLE[MAX_INTERRUPT_PIN];
 
-  BaseType_t task_woken = pdFALSE;
+// faketodo: move outside tachometer.c
+static void gpio_irq_handler(uint gpio, uint32_t event_mask) {
+  gpio_acknowledge_irq(gpio, event_mask);
+  switch (VENTI_IRQ_TABLE[gpio].type) {
+    case VENTI_TACH_IRQ:
+      // Handle tachometer interrupt
+      uint64_t timestamp_us = time_us_64();
+      BaseType_t task_woken = pdFALSE;
 
-  if (xQueueSendFromISR(tach_queue, &timestamp_us, &task_woken) != pdPASS) {
-    record_tach_overflow_from_isr(); /* Must be ISR-safe. */
+      if (xQueueSendFromISR(tach_queue, &timestamp_us, &task_woken) == pdPASS) {
+        stdio_puts("Tachometer queue full.\n");
+      }
+
+      portYIELD_FROM_ISR(task_woken);
+      break;
+
+    case VENTI_USER_INPUT_IRQ:
+      // Handle user input interrupt
+      break;
+    default:
+      stdio_puts("GPIO interrupt without a type found.\n");
   }
-
-  portYIELD_FROM_ISR(task_woken);
+  // tachometer interrupt handler
+  
+  
 }
 
-static void tach_monitor() {
-  
+void tach_monitor(void *parameter) {
+  tach_queue = xQueueCreate(TACH_QUEUE_LENGTH, sizeof(uint64_t));
+
+  gpio_init(TACH1_PIN);
+  gpio_set_irq_enabled_with_callback(TACH1_PIN, GPIO_IRQ_EDGE_FALL, true, gpio_irq_handler);
+
+  for (;;) {
+    uint64_t timestamp_us;
+    if (xQueueReceive(tach_queue, &timestamp_us, pdMS_TO_TICKS(5000)) == pdPASS) {
+
+    }
+  }
 }
