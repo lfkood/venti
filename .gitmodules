@@ -1,6 +1,9 @@
 [submodule "FreeRTOS-Kernel"]
-	path = FreeRTOS-Kernel
+	path = lib/FreeRTOS-Kernel
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
 [submodule "SystemView"]
-	path = SystemView
+	path = lib/SystemView
 	url = https://github.com/SEGGERMicro/SystemView.git
+[submodule "CMSIS-DSP"]
+	path = lib/CMSIS-DSP
+	url = https://github.com/ARM-software/CMSIS-DSP

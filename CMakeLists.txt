@@ -1,9 +1,9 @@
 # Generated Cmake Pico project file
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.14)
 
 set(CMAKE_C_STANDARD 23)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Initialise pico_sdk from installed location
@@ -16,7 +16,7 @@ else()
     set(USERHOME $ENV{HOME})
 endif()
 set(sdkVersion 2.3.1)
-set(toolchainVersion 15_2_Rel1)
+set(toolchainVersion 13_3_Rel1)
 set(picotoolVersion 2.3.1)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
@@ -31,10 +31,12 @@ if(PICO_BOARD STREQUAL "weact_studio_rp2350b_core")
 endif()
 
 # Personalize
-if (PICO_COMPILER STREQUAL "pico_arm_cortex_m33_clang")
+if (PICO_COMPILER STREQUAL "pico_arm_clang")
     set(PICO_TOOLCHAIN_PATH "${USERHOME}/Coding/toolchains/LLVM-ET-Arm")
     add_link_options("-fuse-ld=lld")
 endif()
+
+set(PICO_CLIB picolibc)
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -45,22 +47,41 @@ project(venti C CXX ASM)
 pico_sdk_init()
 
 # Add FreeRTOS
-set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_LIST_DIR}/FreeRTOS-Kernel")
+set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_LIST_DIR}/lib/FreeRTOS-Kernel")
 set(FREERTOS_CONFIG_FILE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/src/include")
 
-add_subdirectory(
-    "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/Community-Supported-Ports/GCC/RP2350_ARM_NTZ"
-    "${CMAKE_CURRENT_BINARY_DIR}/freertos"
+if (PICO_RP2040)
+    add_subdirectory(
+        lib/FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040
+        "${CMAKE_CURRENT_BINARY_DIR}/freertos"
+    )
+elseif (PICO_RP2350 AND NOT PICO_RISCV)
+    add_subdirectory(
+        "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/Community-Supported-Ports/GCC/RP2350_ARM_NTZ"
+        "${CMAKE_CURRENT_BINARY_DIR}/freertos"
+    )
+endif()
+
+set(CMSISCORE "${PICO_SDK_PATH}/src/rp2_common/cmsis/stub/CMSIS/Core")
+set(CMSISDSP_INSTALL OFF)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/CMSIS-DSP/Source bin_dsp)
+target_compile_options(CMSISDSP PRIVATE 
+    "-O3"
+    "-ffast-math"
 )
 
 # Add executable. Default name is the project name, version 0.1
 add_executable(venti
+        lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.c
+        lib/SystemView/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
         src/venti.c
+        src/pid.c
         src/misc.c
+        src/venti_irq.c
         src/tachometer.c
         src/freertos_init.c
-        SystemView/SYSVIEW/SEGGER_SYSVIEW.c
-        SystemView/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
+        src/gpio_interface.c
+        src/usb_interface.c
 )
 
 pico_set_program_name(venti "venti")
@@ -76,18 +97,45 @@ target_compile_definitions(venti PRIVATE RTT_USE_ASM=0)
 # Add the standard library to the build
 target_link_libraries(venti
         pico_stdlib
+        hardware_pwm
+        hardware_adc
         FreeRTOS-Kernel-Heap4
+        CMSISDSP
+        cmsis_core
 )
 
 # Add the standard include files to the build
 target_include_directories(venti PRIVATE
         src/include
         FreeRTOS-Kernel/include
-        SystemView/SYSVIEW
-        SystemView/Sample/FreeRTOSV11
-        SystemView/SEGGER
+        lib/SystemView/SYSVIEW
+        lib/SystemView/Sample/FreeRTOSV11
+        lib/SystemView/SEGGER
+
 )
 
+if (PICO_CLIB STREQUAL "picolibc" AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    set(VENTI_PICOLIBC_SPECS "/usr/lib/picolibc/arm-none-eabi/picolibc.specs"
+        CACHE FILEPATH "Path to the installed GCC picolibc specs file")
+    target_compile_options(venti PRIVATE
+        "--specs=${VENTI_PICOLIBC_SPECS}"
+    )
+    target_compile_options(CMSISDSP PRIVATE
+        "--specs=${VENTI_PICOLIBC_SPECS}"
+    )
+    target_link_options(venti PRIVATE
+        "--specs=${VENTI_PICOLIBC_SPECS}"
+    )
+    target_compile_definitions(venti PRIVATE
+        PICO_THREAD_LOCAL_PROVIDE_SET_TLS=0
+    )
+    # Allocate and switch picolibc thread-local storage for each FreeRTOS task.
+endif()
+# if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+target_compile_options(venti PRIVATE
+    -fstack-usage
+)
+# endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_add_extra_outputs(venti)
