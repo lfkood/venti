@@ -1,13 +1,12 @@
 #include "tachometer.h"
 
 #include "FreeRTOS.h"
-#include "SEGGER_SYSVIEW_FreeRTOS.h"
 #include "freertos_init.h"
+#include "hardware/adc.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pwm.h"
 #include "hardware/timer.h"
-#include "hardware/adc.h"
 #include "pico/stdio.h"
 #include "pico/time.h"
 #include "queue.h"
@@ -27,24 +26,30 @@ typedef struct {
 } fan_event_t;
 
 uint32_t fan_interval[FAN_COUNT][FAN_INTERVAL_LENGTH];
+uint32_t MAX_RPM[FAN_COUNT] = {65535, 65535, 65535};
 
-inline uint16_t look_up_duty_cycle(uint16_t temp_celsius_x10, fan_curve_t* fan_curve);
-inline uint16_t adc_to_celsius_x10(uint16_t adc_value);
+uint16_t look_up_duty_cycle(int16_t temp_celsius_x10,
+                                   fan_curve_t* fan_curve);
+int16_t adc_to_celsius_x10(uint16_t adc_value);
+static inline fan_state_notification_t compose_state_notification(
+    fan_control_select_t control_select, fan_control_type_t control_type,
+    uint16_t speed_value);
 
 void tach_monitor(void* pvParameters) {
-  // To guarantee the interrupt is set on the same core as this task
-  vTaskCoreAffinitySet(NULL, 1 << 0);
-
   const tach_monitor_parameters_t* parameters = pvParameters;
   const size_t fan_index = parameters->fan_index;
   const size_t recipient_count = parameters->recipient_count;
   const TaskHandle_t fan_controller = parameters->fan_controller;
   const TaskHandle_t* recipients = parameters->recipients;
   uint32_t* const intervals = fan_interval[fan_index];
-
+  
+  
+  // To guarantee the interrupt is set on the same core as this task
+  vTaskCoreAffinitySet(NULL, 1 << 0);
   gpio_init(TACH1_PIN);
   gpio_set_irq_enabled_with_callback(TACH1_PIN, GPIO_IRQ_EDGE_FALL, true,
                                      gpio_irq_handler);
+  vTaskCoreAffinitySet(NULL, 1 << 0 | 1 << 1);  // Re-enable both cores
 
   uint32_t last_timestamp_us = 0;
   uint32_t new_timestamp_us = 0;
@@ -89,6 +94,7 @@ void tach_monitor(void* pvParameters) {
   }
 }
 
+
 void fan_control(void* pvParameters) {
   #pragma region Paramater Initialization and variable declaration
   fan_control_parameters_t* parameters = pvParameters;
@@ -96,8 +102,13 @@ void fan_control(void* pvParameters) {
   const uint pwm_control_pin = parameters->control_pins.pwm_control;
   fan_curve_t fan_curve = parameters->fan_curve;
 
+  size_t fan_index = parameters->fan_index;
+
+  TaskHandle_t* recipients = parameters->recipients;
+  size_t recipient_count = parameters->recipient_count;
+
   fan_control_notification_t command_notification;
-  fan_control_command_t current_command;
+  fan_control_command_t current_command = {SPEED_SELECT_PWM, CONTROL_SET_PWM, 1024};
 
   TickType_t last_wake_time = xTaskGetTickCount();
   BaseType_t command_result;
@@ -108,13 +119,13 @@ void fan_control(void* pvParameters) {
     uint32_t as_notification;
   } curve_update;
 
-  uint32_t current_speed;
+  uint32_t current_speed = 0;
   float current_speed_f;
   float target_speed_f;
   uint16_t pwm_level = 0;
 
-  venti_pid_t* pwm_control_pid = venti_pid_init(0.1f, 0.3f, 0.02f);
-  venti_pid_t* vin_control_pid = venti_pid_init(0.1f, 0.3f, 0.02f);
+  venti_pid_t* pwm_control_pid = venti_pid_init(0.1f, 0.3f * PID_DT_MS / 1000.0f, 0.02f * 1000.0f / PID_DT_MS);
+  venti_pid_t* vin_control_pid = venti_pid_init(0.1f, 0.3f * PID_DT_MS / 1000.0f, 0.02f * 1000.0f / PID_DT_MS);
 
   #pragma region Peripheral Initialization
   uint voltage_slice = pwm_gpio_to_slice_num(vin_control_pin);
@@ -131,7 +142,7 @@ void fan_control(void* pvParameters) {
   uint pwm_pin_slice = pwm_gpio_to_slice_num(pwm_control_pin);
   pwm_init(pwm_pin_slice, &pwm_pin_config, true);
   gpio_set_function(pwm_control_pin, GPIO_FUNC_PWM);
-  
+
   // Init temp sensor
   adc_init();
   adc_set_temp_sensor_enabled(true);
@@ -143,37 +154,43 @@ void fan_control(void* pvParameters) {
   uint32_t pwm_pin_detected = 0;
   #pragma endregion
   for (;;) {
-    #pragma region Command Handling
+  #pragma region Command Handling
     // Get command for interface
     command_result =
         xTaskNotifyWaitIndexed(FAN_CONTROL_COMMAND_INDEX, 0, 0,
                                &command_notification.as_notification, 0);
-    // Clear PID
-    if (current_command.control_select != SPEED_SELECT_PID &&
-        command_notification.as_command.control_select == SPEED_SELECT_PID) {
-      venti_pid_reset(pwm_control_pid);
-      venti_pid_reset(vin_control_pid);
+    if (command_result == pdPASS) {
+      // Clear PID when a new command switches to PID control.
+      if (current_command.control_select != SPEED_SELECT_PID &&
+          command_notification.as_command.control_select == SPEED_SELECT_PID) {
+        venti_pid_reset(pwm_control_pid);
+        venti_pid_reset(vin_control_pid);
+      }
+      current_command = command_notification.as_command;
     }
-    current_command = command_notification.as_command;
     // Set up state machine for fan control type.
     switch (current_command.control_type) {
       case CONTROL_SET_PWM:
         current_control_type = CONTROL_SET_PWM;
-      case CONTOL_SET_VOLTAGE:
-        current_control_type = CONTOL_SET_VOLTAGE;
+      case CONTROL_SET_VOLTAGE:
+        current_control_type = CONTROL_SET_VOLTAGE;
       case CONTROL_UNCHANGED:
         if (pwm_pin_detected) {
           current_control_type = CONTROL_SET_PWM;
         } else {
-          current_control_type = CONTOL_SET_VOLTAGE;
+          current_control_type = CONTROL_SET_VOLTAGE;
         }
     }
-    #pragma endregion
+#pragma endregion
     // Get current speed from tachmonitor
+    uint32_t notified_speed;
     speed_result = xTaskNotifyWaitIndexed(FAN_CONTROL_SPEED_NOTIFICATION_INDEX,
-                                          0, 0, &current_speed, 0);
-    curve_update_result = xTaskNotifyWaitIndexed(FAN_CONTROL_CURVE_UPDATE_INDEX,
-                                                0, 0, &curve_update.as_notification, 0);
+                                          0, 0, &notified_speed, 0);
+    if (speed_result == pdPASS) {
+      current_speed = notified_speed;
+    }
+    curve_update_result = xTaskNotifyWaitIndexed(
+        FAN_CONTROL_CURVE_UPDATE_INDEX, 0, 0, &curve_update.as_notification, 0);
     if (curve_update_result == pdPASS) {
       fan_curve = *curve_update.as_curve;
     }
@@ -195,7 +212,8 @@ void fan_control(void* pvParameters) {
         pwm_set_gpio_level(pwm_control_pin, 4'095);
         gpio_set_function(vin_control_pin, GPIO_FUNC_PWM);
         if (current_command.control_select == SPEED_SELECT_PID) {
-          xQueueSend(user_error_queue, PID_FAN_SPEED_TOO_LOW, pdMS_TO_TICKS(10));
+          user_error_t error = PID_FAN_SPEED_TOO_LOW;
+          xQueueSend(user_error_queue, &error, pdMS_TO_TICKS(10));
         }
         last_wake_time = xTaskGetTickCount();
       }
@@ -213,38 +231,49 @@ void fan_control(void* pvParameters) {
         } else {
           pwm_level = (uint16_t)venti_pid_step(pwm_control_pid, error);
         }
-        stdio_printf("current speed: %d, target speed: %d, pwm level: %d\n",
-                     current_speed, current_command.speed_value, pwm_level);
+        // stdio_printf("current speed: %d, target speed: %d, pwm level: %d\n",
+        //              current_speed, current_command.speed_value, pwm_level);
         break;
       case SPEED_SELECT_AUTO:
-          pwm_level = look_up_duty_cycle(adc_to_celsius_x10(adc_read()), &fan_curve);
-          break;
+        pwm_level =
+            look_up_duty_cycle(adc_to_celsius_x10(adc_read()), &fan_curve);
+        break;
       case SPEED_SELECT_OFF:
         pwm_set_gpio_level(pwm_control_pin, 0);
         pwm_set_gpio_level(vin_control_pin, 0);
         break;
     }
     switch (current_command.control_type) {
-          case CONTROL_SET_PWM:
-            pwm_set_gpio_level(pwm_control_pin, pwm_level);
-            break;
-          case CONTOL_SET_VOLTAGE:
-            pwm_set_gpio_level(vin_control_pin, pwm_level);
-            break;
-          case CONTROL_UNCHANGED:
-            stdio_puts("invalid fan control state");
-            break;
-        }
-    
+      case CONTROL_SET_PWM:
+        pwm_set_gpio_level(pwm_control_pin, pwm_level);
+        break;
+      case CONTROL_SET_VOLTAGE:
+        pwm_set_gpio_level(vin_control_pin, pwm_level);
+        break;
+      case CONTROL_UNCHANGED:
+        stdio_puts("invalid fan control state");
+        break;
+    }
+
+    // Give user interface feedback on current control type
+    fan_state_notification_t command_notification;
+    command_notification = compose_state_notification(current_command.control_select, current_command.control_type, current_command.speed_value);
+    for (int recipient = 0; recipient < parameters->recipient_count; recipient++) {
+      xTaskNotifyIndexed(parameters->recipients[recipient], FAN_INTERFACE_STATE_INDEX(fan_index),
+                         command_notification.as_notification, eSetValueWithOverwrite);
+    }
+
     vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(PID_DT_MS));
   }
 }
 
-inline uint16_t adc_to_celsius_x10(uint16_t adc_value) {
-  return 4372 - ((int32_t)adc_value * 4682 + 500) / 1000;;
+int16_t adc_to_celsius_x10(uint16_t adc_value) {
+  return 4372 - ((int32_t)adc_value * 4682 + 500) / 1000;
+  ;
 }
 
-inline uint16_t look_up_duty_cycle(uint16_t temp_celsius_x10, fan_curve_t* fan_curve) {
+uint16_t look_up_duty_cycle(int16_t temp_celsius_x10,
+                                   fan_curve_t* fan_curve) {
   size_t i = 0;
   size_t j = 0;
   for (j = 0; j < fan_curve->length; j++) {
@@ -253,5 +282,22 @@ inline uint16_t look_up_duty_cycle(uint16_t temp_celsius_x10, fan_curve_t* fan_c
     }
     i = j;
   }
-  return ((int32_t)fan_curve->duty_cycle[i]*(1+(int32_t)fan_curve->temp_celsius_x10[j] - (int32_t)temp_celsius_x10) + fan_curve->duty_cycle[j]*(1+(int32_t)temp_celsius_x10 - (int32_t)fan_curve->temp_celsius_x10[i]))/(2+(int32_t)fan_curve->temp_celsius_x10[j] - (int32_t)fan_curve->temp_celsius_x10[i]);
+  return ((int32_t)fan_curve->duty_cycle[i] *
+              (1 + (int32_t)fan_curve->temp_celsius_x10[j] -
+               (int32_t)temp_celsius_x10) +
+          fan_curve->duty_cycle[j] *
+              (1 + (int32_t)temp_celsius_x10 -
+               (int32_t)fan_curve->temp_celsius_x10[i])) /
+         (2 + (int32_t)fan_curve->temp_celsius_x10[j] -
+          (int32_t)fan_curve->temp_celsius_x10[i]);
+}
+
+static inline fan_state_notification_t compose_state_notification(
+    fan_control_select_t control_select, fan_control_type_t control_type,
+    uint16_t speed_value) {
+  fan_state_notification_t notification;
+  notification.as_state.control_select = control_select;
+  notification.as_state.control_type = control_type;
+  notification.as_state.speed_value = speed_value;
+  return notification;
 }

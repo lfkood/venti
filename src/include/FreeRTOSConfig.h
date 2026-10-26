@@ -8,4 +8,11 @@
 #include "FreeRTOSConfig_examples_common.h"
 #include "SEGGER_SYSVIEW_FreeRTOS.h"
 
+#if !USE_LEGACY_TRACE_API && TRACERETURN_ENABLE
+#undef traceRETURN_vTaskEnterCriticalFromISR
+#define traceRETURN_vTaskEnterCriticalFromISR(uxSavedInterruptStatus) \
+    SEGGER_SYSVIEW_RecordEndCallU32(                                 \
+        apiID_VTASKENTERCRITICALFROMISR, (U32)(uxSavedInterruptStatus))
+#endif
+
 #endif

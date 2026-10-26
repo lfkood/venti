@@ -89,7 +89,7 @@ pico_set_program_version(venti "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(venti 0)
-pico_enable_stdio_usb(venti 0)
+pico_enable_stdio_usb(venti 1)
 pico_enable_stdio_rtt(venti 1)
 
 target_compile_definitions(venti PRIVATE RTT_USE_ASM=0)

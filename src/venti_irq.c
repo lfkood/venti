@@ -20,7 +20,7 @@ void __time_critical_func(gpio_irq_handler)(uint gpio,
     case VENTI_TACH_IRQ:
       uint32_t timestamp_us = time_us_32();
 
-      if (xTaskNotifyFromISR(TACH_MONITORS[VENTI_IRQ_TABLE[gpio].fan_index],
+      if (xTaskNotifyFromISR(TACH_MONITOR[VENTI_IRQ_TABLE[gpio].fan_index],
                              timestamp_us, eSetValueWithOverwrite,
                              &task_woken) != pdPASS) {
         stdio_puts("Tachometer queue full.\n");
@@ -28,10 +28,10 @@ void __time_critical_func(gpio_irq_handler)(uint gpio,
 
     // Handle user input interrupt
     case VENTI_USER_INPUT_IRQ:
-      stdio_printf("Received user input interrupt on pin %d.\n", gpio);
+      // stdio_printf("Received user input interrupt on pin %d.\n", gpio);
 
     default:
-      stdio_puts("GPIO interrupt without a type found.\n");
+      // stdio_puts("GPIO interrupt without a type found.\n");
   }
   portYIELD_FROM_ISR(task_woken);
 }

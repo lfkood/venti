@@ -11,7 +11,8 @@ typedef enum {
 } user_error_t;
 
 extern QueueHandle_t user_error_queue;
-extern TaskHandle_t TACH_MONITORS[FAN_COUNT];
+extern TaskHandle_t TACH_MONITOR[FAN_COUNT];
+extern TaskHandle_t FAN_CONTROL[FAN_COUNT];
 
 void freeRTOS_init(void);
 

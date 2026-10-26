@@ -59,6 +59,10 @@ Additional information:
 */
 
 #define SEGGER_SYSVIEW_RTT_CHANNEL 1
+// Allow for bursts and polling/forwarding latency through the IP probe.
+#define SEGGER_SYSVIEW_RTT_BUFFER_SIZE (16u * 1024u)
+// Start on the recorder's command, not before a host is draining the buffer.
+#define SEGGER_SYSVIEW_START_ON_INIT 0
 
 // Use the Pico hardware timer instead of the debugger-dependent DWT counter.
 // This timer is already running before main(), including before the scheduler.

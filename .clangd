@@ -2,3 +2,4 @@ Diagnostics:
   UnusedIncludes: None
 CompileFlags:
   CompilationDatabase: build
+

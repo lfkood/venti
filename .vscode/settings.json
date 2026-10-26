@@ -24,10 +24,9 @@
     "cmake.generator": "Ninja",
     "cmake.cmakePath": "${userHome}/.pico-sdk/cmake/v4.3.4/bin/cmake",
     "C_Cpp.debugShortcut": false,
-    "C_Cpp.intelliSenseEngine": "disabled",
     "clangd.arguments": [
         "--background-index",
-        "--query-driver=${userHome}/.pico-sdk/toolchain/15_2_Rel1/bin/arm-none-eabi-*,${userHome}/Coding/toolchains/LLVM-ET-Arm-*/bin/clang*"
+        "--query-driver=${userHome}/.pico-sdk/toolchain/*/bin/arm-none-eabi-*"
     ],
     "terminal.integrated.env.windows": {
         "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.3.1",
