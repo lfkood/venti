@@ -115,15 +115,18 @@ target_include_directories(venti PRIVATE
 )
 
 if (PICO_CLIB STREQUAL "picolibc" AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    set(VENTI_PICOLIBC_SPECS "/usr/lib/picolibc/arm-none-eabi/picolibc.specs"
+    set(VENTI_PICOLIBC_SPECS "${USERHOME}/Coding/toolchains/picolibc-1.8.8-13.3.rel1/lib/gcc/arm-none-eabi/13.3.1/picolibc.specs"
         CACHE FILEPATH "Path to the installed GCC picolibc specs file")
     target_compile_options(venti PRIVATE
+        "--picolibc-prefix=${USERHOME}/Coding/toolchains/picolibc-1.8.8-13.3.rel1/arm-none-eabi"
         "--specs=${VENTI_PICOLIBC_SPECS}"
     )
     target_compile_options(CMSISDSP PRIVATE
+        "--picolibc-prefix=${USERHOME}/Coding/toolchains/picolibc-1.8.8-13.3.rel1/arm-none-eabi"
         "--specs=${VENTI_PICOLIBC_SPECS}"
     )
     target_link_options(venti PRIVATE
+        "--picolibc-prefix=${USERHOME}/Coding/toolchains/picolibc-1.8.8-13.3.rel1/arm-none-eabi"
         "--specs=${VENTI_PICOLIBC_SPECS}"
     )
     target_compile_definitions(venti PRIVATE

@@ -1,5 +1,11 @@
 #include "usb_interface.h"
 
+#include <ctype.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+
 #include "FreeRTOS.h"
 #include "fan_command.h"
 #include "freertos_init.h"
@@ -11,11 +17,6 @@
 #include "venti_board_defs.h"
 #include "venti_defs.h"
 
-#include <ctype.h>
-#include <inttypes.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
 
 typedef struct {
   uint32_t index;
@@ -79,8 +80,8 @@ void stdio_interface(void* pvParameters) {
     return;
   }
   reset_prompt();
-  if (xTaskCreate(stdio_rx_task, "usb_rx", 2048, NULL,
-                  tskINTERFACE_PRIORITY, NULL) != pdPASS) {
+  if (xTaskCreate(stdio_rx_task, "usb_rx", 2048, NULL, tskINTERFACE_PRIORITY,
+                  NULL) != pdPASS) {
     stdio_puts("Failed to create USB receive task");
   }
   for (;;) {
@@ -91,7 +92,8 @@ void stdio_interface(void* pvParameters) {
       }
       fan_state_notification_t notified_state;
       if (xTaskNotifyWaitIndexed(FAN_INTERFACE_STATE_INDEX(i), 0, 0,
-                                 &notified_state.as_notification, 0) == pdPASS) {
+                                 &notified_state.as_notification,
+                                 0) == pdPASS) {
         fan_stats[i].target = notified_state.as_state.speed_value;
         fan_stats[i].command = notified_state.as_state.control_select;
         fan_stats[i].status = notified_state.as_state.control_type;
@@ -128,7 +130,8 @@ static void stdio_rx_task(void* pvParameters) {
     }
     connected = now_connected;
     // Bound each batch so a continuous stream also yields to other tasks.
-    for (size_t received = 0; connected && received < RX_LINE_LENGTH; ++received) {
+    for (size_t received = 0; connected && received < RX_LINE_LENGTH;
+         ++received) {
       int ch = stdio_getchar_timeout_us(0);
       if (ch < 0) break;
 
@@ -137,8 +140,9 @@ static void stdio_rx_task(void* pvParameters) {
         previous_cr = false;
       } else if (ch == '\r' || ch == '\n') {
         if (overflow) {
-          process_line(""); // Clear the previous response.
-          stdio_put_string("Input too long; command discarded\r\n", -1, false, false);
+          process_line("");  // Clear the previous response.
+          stdio_put_string("Input too long; command discarded\r\n", -1, false,
+                           false);
         } else {
           buffer[pos] = '\0';
           process_line(buffer);
@@ -168,20 +172,20 @@ static void stdio_rx_task(void* pvParameters) {
       }
       xSemaphoreGive(terminal_mutex);
     }
-    // Pico stdio services USB in its background IRQ. Polling avoids binding a
-    // FreeRTOS ISR notification callback to a particular core or stdio driver.
     TickType_t delay = pdMS_TO_TICKS(10);
     vTaskDelay(delay > 0 ? delay : 1);
   }
 }
 
-static bool parse_size_t(const char* str, size_t min, size_t max, size_t* value) {
+static bool parse_size_t(const char* str, size_t min, size_t max,
+                         size_t* value) {
   if (str == NULL || value == NULL || *str == '\0' || min > max) return false;
   size_t result = 0;
   for (const char* p = str; *p != '\0'; ++p) {
     if (*p < '0' || *p > '9') return false;
     size_t digit = (size_t)(*p - '0');
-    if (result > max / 10 || (result == max / 10 && digit > max % 10)) return false;
+    if (result > max / 10 || (result == max / 10 && digit > max % 10))
+      return false;
     result = result * 10 + digit;
   }
   if (result < min) return false;
@@ -219,11 +223,11 @@ static int tokenize(const char* line, char tokens[5][16]) {
 
 static void print_usage(terminal_output_t* output) {
   append_output(output,
-      "Usage:\r\n"
-      "  fan <index> off\r\n"
-      "  fan <index> auto [pwm|voltage]\r\n"
-      "  fan <index> pwm <0..4095> [pwm|voltage]\r\n"
-      "  fan <index> rpm <1..max> [pwm|voltage]\r\n");
+                "Usage:\r\n"
+                "  fan <index> off\r\n"
+                "  fan <index> auto [pwm|voltage]\r\n"
+                "  fan <index> pwm <0..4095> [pwm|voltage]\r\n"
+                "  fan <index> rpm <1..max> [pwm|voltage]\r\n");
 }
 
 static void process_line(const char* line) {
@@ -258,17 +262,25 @@ static void process_line(const char* line) {
   } else if (strcmp(action, "auto") == 0) {
     if (argc > 4) goto usage;
     notification.as_command.control_select = SPEED_SELECT_AUTO;
-    if (argc == 4 && !parse_mode(tokens[3], &notification.as_command.control_type)) goto usage;
+    if (argc == 4 &&
+        !parse_mode(tokens[3], &notification.as_command.control_type))
+      goto usage;
   } else if (strcmp(action, "pwm") == 0 || strcmp(action, "rpm") == 0) {
     if (argc < 4) goto usage;
     bool is_pwm = strcmp(action, "pwm") == 0;
     size_t speed;
-    if (!parse_size_t(tokens[3], is_pwm ? 0 : 1,
-                      is_pwm ? 4095 : MAX_RPM[index], &speed) || speed > UINT16_MAX) goto usage;
-    notification.as_command.control_select = is_pwm ? SPEED_SELECT_PWM : SPEED_SELECT_PID;
-    notification.as_command.control_type = is_pwm ? CONTROL_SET_PWM : CONTROL_SET_VOLTAGE;
+    if (!parse_size_t(tokens[3], is_pwm ? 0 : 1, is_pwm ? 4095 : MAX_RPM[index],
+                      &speed) ||
+        speed > UINT16_MAX)
+      goto usage;
+    notification.as_command.control_select =
+        is_pwm ? SPEED_SELECT_PWM : SPEED_SELECT_PID;
+    notification.as_command.control_type =
+        is_pwm ? CONTROL_SET_PWM : CONTROL_SET_VOLTAGE;
     notification.as_command.speed_value = (uint16_t)speed;
-    if (argc == 5 && !parse_mode(tokens[4], &notification.as_command.control_type)) goto usage;
+    if (argc == 5 &&
+        !parse_mode(tokens[4], &notification.as_command.control_type))
+      goto usage;
     numeric = true;
   } else {
     goto usage;
@@ -276,11 +288,12 @@ static void process_line(const char* line) {
 
   if (FAN_CONTROL[index] == NULL ||
       xTaskNotifyIndexed(FAN_CONTROL[index], FAN_CONTROL_COMMAND_INDEX,
-                         notification.as_notification, eSetValueWithOverwrite) != pdPASS) {
+                         notification.as_notification,
+                         eSetValueWithOverwrite) != pdPASS) {
     append_output(&output, "Fan controller unavailable\r\n");
   } else if (numeric) {
     append_output(&output, "Fan %zu %s %u\r\n", index, action,
-                   (unsigned)notification.as_command.speed_value);
+                  (unsigned)notification.as_command.speed_value);
   } else {
     append_output(&output, "Fan %zu %s\r\n", index, action);
   }
@@ -295,27 +308,48 @@ usage:
 static void print_statistics_tx(const fan_statistics_t* fan_stats) {
   terminal_output_t output = {0};
   append_output(&output, "\033[s\033[1;1H\033[2K%-8s %-10s %-10s %-9s %-8s\r\n",
-                 "Index", "Target", "RPM", "Control", "Command");
+                "Index", "Target", "RPM", "Control", "Command");
   for (uint32_t i = 0; i < FAN_COUNT; ++i) {
     const char* status = "UNKNOWN";
     const char* command = "UNKNOWN";
     switch (fan_stats[i].status) {
-      case CONTROL_SET_PWM: status = "PWM"; break;
-      case CONTROL_SET_VOLTAGE: status = "VOLTAGE"; break;
-      case CONTROL_UNCHANGED: status = "UNCHANGED"; break;
+      case CONTROL_SET_PWM:
+        status = "PWM";
+        break;
+      case CONTROL_SET_VOLTAGE:
+        status = "VOLTAGE";
+        break;
+      case CONTROL_UNCHANGED:
+        status = "UNCHANGED";
+        break;
     }
     switch (fan_stats[i].command) {
-      case SPEED_SELECT_PID: command = "PID"; break;
-      case SPEED_SELECT_PWM: command = "PWM"; break;
-      case SPEED_SELECT_AUTO: command = "AUTO"; break;
-      case SPEED_SELECT_OFF: command = "OFF"; break;
+      case SPEED_SELECT_PID:
+        command = "PID";
+        break;
+      case SPEED_SELECT_PWM:
+        command = "PWM";
+        break;
+      case SPEED_SELECT_AUTO:
+        command = "AUTO";
+        break;
+      case SPEED_SELECT_OFF:
+        command = "OFF";
+        break;
     }
-    append_output(&output, "\033[2K%-8" PRIu32 " %-10" PRIu32 " %-10" PRIu32 " %-9s %-8s\r\n",
-                   fan_stats[i].index, fan_stats[i].target, fan_stats[i].rpm, status, command);
+    append_output(&output,
+                  "\033[2K%-8" PRIu32 " %-10" PRIu32 " %-10" PRIu32
+                  " %-9s %-8s\r\n",
+                  fan_stats[i].index, fan_stats[i].target, fan_stats[i].rpm ? 60000000 / fan_stats[i].rpm : 0,
+                  status, command);
   }
-  append_output(&output, "\033[2K-------------------------------------------------\r\n > ");
+  append_output(
+      &output,
+      "\033[2K-------------------------------------------------\r\n > ");
   // Move past the prompt without erasing the user's partially typed command.
-  append_output(&output, "\033[%u;1H\033[2K-------------------------------------------------\033[u",
-                 (unsigned)(FAN_COUNT + 4));
+  append_output(&output,
+                "\033[%u;1H\033[2K---------------------------------------------"
+                "----\033[u",
+                (unsigned)(FAN_COUNT + 4));
   write_output(&output);
 }

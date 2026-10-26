@@ -46,8 +46,10 @@ void tach_monitor(void* pvParameters) {
   
   // To guarantee the interrupt is set on the same core as this task
   vTaskCoreAffinitySet(NULL, 1 << 0);
-  gpio_init(TACH1_PIN);
-  gpio_set_irq_enabled_with_callback(TACH1_PIN, GPIO_IRQ_EDGE_FALL, true,
+  gpio_init(TACH_PIN[fan_index]);
+  gpio_set_dir(TACH_PIN[fan_index], GPIO_IN);
+  gpio_pull_up(TACH_PIN[fan_index]);
+  gpio_set_irq_enabled_with_callback(TACH_PIN[fan_index], GPIO_IRQ_EDGE_FALL, true,
                                      gpio_irq_handler);
   vTaskCoreAffinitySet(NULL, 1 << 0 | 1 << 1);  // Re-enable both cores
 
@@ -70,9 +72,10 @@ void tach_monitor(void* pvParameters) {
       interval_index = (interval_index + 1) % FAN_INTERVAL_LENGTH;
       uint32_t interval = new_timestamp_us - last_timestamp_us;
 
-      if (last_timestamp_us > (UINT16_MAX >> 1)) {
-        stdio_puts("fan rotation interval larger than 15 bits recorded");
-      }
+      // if (interval > (UINT16_MAX >> 1)) {
+      //   // faketodo make generic error
+      //   stdio_puts("fan rotation interval larger than 15 bits recorded");
+      // }
 
       intervals[interval_index] = interval;
       last_timestamp_us = new_timestamp_us;
@@ -84,7 +87,7 @@ void tach_monitor(void* pvParameters) {
       // Notify the fan controller and other recipients(like user interfaces) of
       // update
       current_speed =
-          sum8_u32(intervals) >> 3;  // find mean of current intervals
+          sum8_u32(intervals) >> 2;  // find mean of current intervals
 
     } else {
       interval_index = 0;
@@ -154,7 +157,7 @@ void fan_control(void* pvParameters) {
   uint32_t pwm_pin_detected = 0;
   #pragma endregion
   for (;;) {
-  #pragma region Command Handling
+    #pragma region Command Handling
     // Get command for interface
     command_result =
         xTaskNotifyWaitIndexed(FAN_CONTROL_COMMAND_INDEX, 0, 0,
@@ -171,17 +174,20 @@ void fan_control(void* pvParameters) {
     // Set up state machine for fan control type.
     switch (current_command.control_type) {
       case CONTROL_SET_PWM:
-        current_control_type = CONTROL_SET_PWM;
+        current_command.control_type = CONTROL_SET_PWM;
+        break;
       case CONTROL_SET_VOLTAGE:
-        current_control_type = CONTROL_SET_VOLTAGE;
+        current_command.control_type = CONTROL_SET_VOLTAGE;
+        break;
       case CONTROL_UNCHANGED:
         if (pwm_pin_detected) {
-          current_control_type = CONTROL_SET_PWM;
+          current_command.control_type = CONTROL_SET_PWM;
         } else {
-          current_control_type = CONTROL_SET_VOLTAGE;
+          current_command.control_type = CONTROL_SET_VOLTAGE;
         }
+        break;
     }
-#pragma endregion
+    #pragma endregion
     // Get current speed from tachmonitor
     uint32_t notified_speed;
     speed_result = xTaskNotifyWaitIndexed(FAN_CONTROL_SPEED_NOTIFICATION_INDEX,
@@ -226,7 +232,7 @@ void fan_control(void* pvParameters) {
         current_speed_f = (float)current_speed;
         target_speed_f = (float)current_command.speed_value;
         float error = current_speed_f - target_speed_f;
-        if (current_control_type) {
+        if (current_command.control_type) {
           pwm_level = (uint16_t)venti_pid_step(vin_control_pid, error);
         } else {
           pwm_level = (uint16_t)venti_pid_step(pwm_control_pid, error);

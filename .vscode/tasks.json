@@ -7,7 +7,7 @@
             "command": "bash",
             "args": [
                 "${workspaceFolder}/.vscode/flash-rtt.sh",
-                "${userHome}/.pico-sdk/toolchain/15_2_Rel1/bin/arm-none-eabi-gdb",
+                "${userHome}/.pico-sdk/toolchain/13_3_Rel1/bin/arm-none-eabi-gdb",
                 "${command:cmake.buildDirectory}/venti.elf"
             ],
             "dependsOn": "CMake: build venti",
@@ -69,6 +69,7 @@
                 "target/${command:raspberry-pi-pico.getTarget}.cfg",
                 "-c",
                 "adapter speed 25000",
+                "-c",
                 "program \"${command:raspberry-pi-pico.launchTargetPath}\" verify reset",
                 "-c",
                 "targets rp2350.cm0",

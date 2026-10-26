@@ -33,5 +33,6 @@ void __time_critical_func(gpio_irq_handler)(uint gpio,
     default:
       // stdio_puts("GPIO interrupt without a type found.\n");
   }
+  traceISR_EXIT();
   portYIELD_FROM_ISR(task_woken);
 }

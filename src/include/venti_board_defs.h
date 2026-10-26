@@ -5,9 +5,17 @@
 #include "hardware/gpio.h"
 
 #define FAN_COUNT 3
-#define TACH0_PIN 4
-#define TACH1_PIN 6
-#define TACH2_PIN 8
+enum {
+  TACH_PIN_0 = 4,
+  TACH_PIN_1 = 6,
+  TACH_PIN_2 = 8,
+};
+
+static const uint TACH_PIN[FAN_COUNT] = {
+  TACH_PIN_0,
+  TACH_PIN_1,
+  TACH_PIN_2,
+};
 #define MAX_INTERRUPT_PIN 16 // controls interrupt handler lookup size
 
 typedef struct {
@@ -31,17 +39,17 @@ typedef struct {
 } venti_gpio_irq_t;
 
 static venti_gpio_irq_t VENTI_IRQ_TABLE[MAX_INTERRUPT_PIN] = {
-    [TACH0_PIN] = {
+    [TACH_PIN_0] = {
         .event_mask = GPIO_IRQ_EDGE_FALL,
         .type = VENTI_TACH_IRQ,
         .fan_index = 0,
     },
-    [TACH1_PIN] = {
+    [TACH_PIN_1] = {
         .event_mask = GPIO_IRQ_EDGE_FALL,
         .type = VENTI_TACH_IRQ,
         .fan_index = 1,
     },
-    [TACH2_PIN] = {
+    [TACH_PIN_2] = {
         .event_mask = GPIO_IRQ_EDGE_FALL,
         .type = VENTI_TACH_IRQ,
         .fan_index = 2,

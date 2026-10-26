@@ -60,7 +60,7 @@ Additional information:
 
 #define SEGGER_SYSVIEW_RTT_CHANNEL 1
 // Allow for bursts and polling/forwarding latency through the IP probe.
-#define SEGGER_SYSVIEW_RTT_BUFFER_SIZE (16u * 1024u)
+#define SEGGER_SYSVIEW_RTT_BUFFER_SIZE (128u * 1024u)
 // Start on the recorder's command, not before a host is draining the buffer.
 #define SEGGER_SYSVIEW_START_ON_INIT 0
 
@@ -68,7 +68,7 @@ Additional information:
 // This timer is already running before main(), including before the scheduler.
 #define SEGGER_SYSVIEW_GET_TIMESTAMP() SEGGER_SYSVIEW_X_GetTimestamp()
 #define SEGGER_SYSVIEW_TIMESTAMP_BITS 32
-#define VENTI_SYSVIEW_TIMESTAMP_FREQ 1000000u
+#define VENTI_SYSVIEW_TIMESTAMP_FREQ 1'000'000u
 #define VENTI_SYSVIEW_CPU_FREQ clock_get_hz(clk_sys)
 #define VENTI_SYSVIEW_RAM_BASE SRAM_BASE
 #define VENTI_SYSVIEW_SYSTEM_DESC "N=venti,D=RP2350 Cortex-M33,O=FreeRTOS"
