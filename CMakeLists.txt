@@ -43,6 +43,9 @@ include(pico_sdk_import.cmake)
 
 project(venti C CXX ASM)
 
+option(VENTI_ENABLE_AUDIO_FOUNDATION "Enable platform-agnostic audio foundation sources" ON)
+option(VENTI_BUILD_AUDIO_HOST_SIM "Build host audio simulation executable" OFF)
+
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
@@ -84,6 +87,14 @@ add_executable(venti
         src/usb_interface.c
 )
 
+if (VENTI_ENABLE_AUDIO_FOUNDATION)
+    target_sources(venti PRIVATE
+        src/audio/audio_engine.c
+        src/audio/audio_controller.c
+        src/audio/audio_decoder_registry.c
+    )
+endif()
+
 pico_set_program_name(venti "venti")
 pico_set_program_version(venti "0.1")
 
@@ -107,6 +118,7 @@ target_link_libraries(venti
 # Add the standard include files to the build
 target_include_directories(venti PRIVATE
         src/include
+        src/audio/include
         FreeRTOS-Kernel/include
         lib/SystemView/SYSVIEW
         lib/SystemView/Sample/FreeRTOSV11
@@ -142,3 +154,19 @@ target_compile_options(venti PRIVATE
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_add_extra_outputs(venti)
+
+if (VENTI_BUILD_AUDIO_HOST_SIM)
+    add_executable(venti_audio_host_sim
+        src/audio/audio_engine.c
+        src/audio/audio_controller.c
+        src/audio/audio_decoder_registry.c
+        src/audio/host_storage_posix.c
+        src/audio/host_sim_main.c
+    )
+    target_include_directories(venti_audio_host_sim PRIVATE
+        src/audio/include
+    )
+    target_compile_definitions(venti_audio_host_sim PRIVATE
+        _DEFAULT_SOURCE
+    )
+endif()
